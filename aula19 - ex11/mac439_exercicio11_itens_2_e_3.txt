@@ -1,0 +1,34 @@
+
+Exercício 2: Para cada um dos programas dos Exercício 1, discuta os problemas de atomicidade (se houver algum) que podem ocorrer no caso de uma falha (queda) do sistema no meio da execução do programa.
+
+item 1.a) Caso o comando para excluir o equipamento de sua tabela "específica" fosse executado e houvesse uma queda do sistema depois e a tupla correspondente a produto não fosse excluída também, o banco de dados ficaria em um estado inconsistente. Entretanto, como o as duas operações de remoção são executadas dentro uma transação, a consistência dos dados será sempre garantida. Se o programa terminar sem executar o 'COMMIT', as mudancas feitas por essa transacao não ficam visíveis para os demais usuários desse banco de dados. E se a falha ocorrer depois do 'COMMIT', essas mudanças já serão visiveis para todos e serão permanentes.
+
+item 1.b) Nesse item, assim como no anterior, poderíamos ter problemas de inconsistência caso os três comandos de atualização de preços não fossem executados de forma atômica (em uma transação). Se as operações não estivessem em uma transação, poderíamos ter uma situação em que a atualização das tabela de PC e Laptop é feita, mas depois o programa falha antes de ter executado a atualização em Impressoras -- o que resultaria numa incosistência nos dados. Entretanto, como o item 1.a, as operações se encontram dentro de uma transação em que as mudanças estarão visíveis somente após o 'COMMIT'.
+
+item 1.c) Nesse item, assim como nos 2 anteriores, poderíamos ter problemas de inconsistência caso os dois comandos de inserção (nas tabelas Produto e Impressora) não fossem executados de forma atômica (em uma transação). 
+
+item 1.d) Como nesse caso é feita somente a leitura, não existem problemas de atomicidade no banco de dados caso o programa pare no meio de sua execução. 
+
+--------------------------------------------------------
+
+Exercício 3: Suponha que tenhamos uma transação T que é uma função que executa “eternamente”
+e que a cada hora verifica se existe um equipamento do fabricante 'A' que seja vendido por mais de
+R$2500,00. Se ela encontrar algum equipamento desse tipo, ela imprime as informações do
+equipamento e termina. Durante esse tempo, outras transações que são execuções de um dos quatro
+programas descritos no Exercício 1 podem rodar. Para cada um dos quatro níveis de isolamento
+possíveis – SERIALIZABLE, REPEATABLE READ, READ COMMITED e READ
+UNCOMMITED – diga qual é o efeito sobre T da execução nesse nível de isolamento.
+
+
+- Não faz sentido executar T no nível SERIALIZABLE. Caso contrário, depois de T ser iniciada, ela nunca mais veria nenhuma mudança no banco de dados.
+Na prática, uma transação como T, cuja execução é longa, deveria ser abortada pelo sistema periodicamente. Isso causaria o “feliz” efeito de permitir que T fosse reiniciada e que pudesse ver os novos PCs que foram adicionados no BD.
+
+- Para as finalidades de T, é suficiente que ela rode com nível de isolamento REPEATABLE READ. Isso garantirá que, sempre que ela ver uma tupla, ela continuará vendo aquela tupla no futuro. Entretanto, ela também terá a permissão de ver as novas tuplas que serão adicionadas no BD. O problema potencial desse nível de isolamento é que a transação do Exercício 1(b), que aumenta o preço dos produtos, pode ser impedida de ser executada enquanto T está em execução, porque ela poderia mudar a tupla com o preço antigo, que T precisa ver. Obs.: Um SGBD que implementa um controle de concorrência do tipo multiversões (multiversion concurrency control, explicado na aula sobre NoSQL) poderia permitir que T visse uma versão antiga da tupla, enquanto outras transações veriam a versão mais nova.
+
+- T também pode ser executada no nível READ COMMITED e essa escolha é provavelmente a melhor de todas. Com esse nível de isolamento, a transação T verá em algum momento todas as tuplas novas ou alteradas que as transações do Exercício 1 (itens (b) ou (c)) produzirão, ao mesmo tempo que não imporá nenhuma restrição sobre essas transações.
+
+- O nível de isolamento READ UNCOMMITED poderia ser usado para T, embora ele pudesse ter como consequência a seguinte situação: uma nova impressora é inserida no BD; T vê essa nova impressora; logo em seguida, a pessoa que inseriu a impressora muda de ideia e aborta a transação que fez a inserção – o que torna a leitura feita por T uma “leitura suja”.
+
+
+
+

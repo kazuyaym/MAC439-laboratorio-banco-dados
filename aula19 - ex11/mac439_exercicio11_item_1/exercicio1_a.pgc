@@ -1,0 +1,79 @@
+/******************************************************
+Laboratório de Bancos de Dados - MAC0439
+Lista de Exercícios 11 - 2015 - Proposta de Resolução
+*******************************************************/
+#include <stdio.h>
+#include <string.h>
+
+#define NO_DATA !(strcmp(SQLSTATE,"02000"))
+
+/* Exercício 1 ***************************************/
+
+/*
+a) Dado um número de modelo de um equipamento, remova-o do BD. (Atenção: isso requer uma modificação em dados de mais de uma tabela do BD).
+*/
+
+int main(){
+	char strModelo[15];
+
+	EXEC SQL BEGIN DECLARE SECTION;
+
+		const char *bd_url = "bd_xxxxx@data.ime.usp.br:23001";
+		const char *usuario = "uxxxx";
+		const char *senha = "*******";
+
+
+		int modeloSelecionado;
+		char tipo[21] ;
+		char comandoRemocao[256]; 
+
+	EXEC SQL END DECLARE SECTION;
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error; 
+
+    	EXEC SQL CONNECT TO :bd_url AS conexaoBD USER :usuario USING :senha;
+	EXEC SQL SET TRANSACTION READ WRITE ISOLATION LEVEL SERIALIZABLE;
+	
+	//EXEC SQL BEGIN TRANSACTION;
+
+	EXEC SQL SET search_path TO 'aula19';
+
+	printf("\n  Digite o modelo de equipamento a ser excluido: ");
+	scanf("%d",&modeloSelecionado);	
+
+	EXEC SQL SELECT tipo INTO :tipo FROM produto WHERE modelo = :modeloSelecionado;
+
+	if (NO_DATA) 
+		printf ("\nModelo %d nao foi encontrado.\n", modeloSelecionado);
+	else {
+
+		// Forma o comando de remocao para a tabela especifica do equipamento a ser removido
+		strcpy(comandoRemocao, "DELETE FROM ");
+		strcat(comandoRemocao, tipo);
+		strcat(comandoRemocao, " WHERE modelo = ");
+		sprintf(strModelo, "%d", modeloSelecionado);  // Converte o numero do modelo para string
+		strcat(comandoRemocao, strModelo);
+
+		// Remove o equipamento da sua tabela especifica e da tabela Produto
+		EXEC SQL EXECUTE IMMEDIATE :comandoRemocao;
+		EXEC SQL DELETE FROM produto WHERE modelo = :modeloSelecionado;		
+
+		printf ("\nModelo %d foi excluido.\n", modeloSelecionado);
+	}
+
+	EXEC SQL COMMIT;
+
+    	EXEC SQL DISCONNECT conexaoBD;
+
+	return 0;
+
+	sql_error:
+
+	printf ("\nModelo %d nao pode ser excluido.\n", modeloSelecionado);
+	printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+	EXEC SQL ROLLBACK; 
+
+	return 1;
+}
+
+

@@ -1,0 +1,184 @@
+/*******************************************
+
+MAC0439 - Laboratório de Banco de Dados
+Exercício 11
+
+Marcos Kazuya Yamazaki
+7577622
+
+*******************************************/
+
+/***
+	Aula 19: Linguagem SQL
+	SQL Embutida + Transações
+
+Exercício 1: Os exercícios a seguir envolvem programas que manipulam as seguintes relações:
+
+	Produto (fabricante, modelo, tipo)
+	PC(modelo, velocidade, ram, hd, cd, preco)
+	Laptop (modelo, velocidade, ram, hd, tela, preco)
+	Impressora(modelo, colorida, tipo, preco)
+
+	Usando SQL embutida, faça os seguintes programas em C. Não se esqueça de executar os
+	comandos BEGIN TRANSACTION, COMMIT e ROLLBACK quando for apropriado e de dizer ao
+	sistema que suas transações são do tipo “somente leitura” quando for o caso. Para testar o seus
+	programas, use o banco de dados que pode ser criado por meio do script
+	“criacao_bd_computadores.sql”.
+***/
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#define NO_ERRORS !(strcmp(SQLSTATE,"00000"))
+#define NO_MORE_TUPLES !(strcmp(SQLSTATE,"02000"))
+
+// a) Dado um número de modelo de um equipamento, remova-o do BD. (Atenção: isso requer uma
+//    modificação em dados de mais de uma tabela do BD). 
+
+void DeletaModelo(long int m) {
+	EXEC SQL BEGIN DECLARE SECTION;
+		long int num_modelo = m;
+	EXEC SQL END DECLARE SECTION; 
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error;
+
+	EXEC SQL DELETE FROM pc WHERE modelo = :num_modelo;
+	EXEC SQL DELETE FROM laptop WHERE modelo = :num_modelo; 
+	EXEC SQL DELETE FROM impressora WHERE modelo = :num_modelo; 
+	EXEC SQL DELETE FROM produto WHERE modelo = :num_modelo; 
+
+	EXEC SQL COMMIT;
+	return;
+
+	sql_error:
+		printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+}
+
+// b) Dado um fabricante, aumente o preço dos Laptops desse fabricante em R$200.
+void AumentaPrecoLaptop(char f) {
+	EXEC SQL BEGIN DECLARE SECTION;
+		char fabricante = f;
+	EXEC SQL END DECLARE SECTION; 
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error;
+
+	EXEC SQL UPDATE laptop SET preco = preco + 200 WHERE modelo IN (
+			SELECT modelo FROM produto WHERE fabricante = :fabricante);
+
+	EXEC SQL COMMIT;
+	return;
+
+	sql_error:
+		printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+}
+
+// c) Dados um fabricante, um número de modelo, um tipo de impressora, a indicação de que a
+//    impressora é ou não colorida e um preço, insira essas informações do novo equipamento nas tabelas
+//    Impressora e Produto. Caso já exista no BD um produto com o mesmo número de modelo que o
+//    fornecido, use como número de modelo para o novo equipamento o menor número de modelo ainda
+//    não existente no BD que seja maior que o número inicialmente fornecido.
+void InsereImpressora(char f, long int m, char *t, bool c, long int p) {
+	EXEC SQL BEGIN DECLARE SECTION;
+		char fabricante_impressora = f;
+		long int modelo_impressora = m;
+		long int modelo = m;
+		char *tipo_impressora = t;
+		bool colorida_impressora = c;
+		long int preco_impressora = p;
+	EXEC SQL END DECLARE SECTION; 
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error;
+
+	EXEC SQL SET TRANSACTION READ WRITE 
+	ISOLATION LEVEL SERIALIZABLE;
+
+	EXEC SQL DECLARE cursorProduto CURSOR FOR 
+			SELECT modelo FROM Produto WHERE modelo >= :modelo_impressora ORDER BY modelo;
+	EXEC SQL OPEN cursorProduto;
+
+	while(1) {
+		EXEC SQL FETCH FROM cursorProduto INTO :modelo_impressora;
+		if(NO_MORE_TUPLES) break;
+		if(modelo_impressora == modelo){
+			modelo++;
+		}
+		else break;
+	}
+	EXEC SQL CLOSE cursorProduto; 
+
+	EXEC SQL INSERT INTO produto (fabricante, modelo, tipo) VALUES (:fabricante_impressora, :modelo, 'impressora');
+	EXEC SQL INSERT INTO impressora (modelo, colorida, tipo, preco) VALUES (:modelo, :colorida_impressora, :tipo_impressora, :preco_impressora);	
+
+	EXEC SQL COMMIT;
+	return;
+
+	sql_error:
+		printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+}
+
+// d) Dados uma velocidade e um preço, liste os Laptops com a velocidade e preços dados, mostrando
+//    o número do modelo e o nome do fabricante.
+void BuscaLaptop(int v, float p) {
+	EXEC SQL BEGIN DECLARE SECTION;
+		int velocidade_laptop = v;
+		float preco_laptop = p;
+		int modelo_laptop;
+		char fabricante_laptop;
+	EXEC SQL END DECLARE SECTION; 
+
+	EXEC SQL WHENEVER SQLERROR SQLPRINT;
+
+	EXEC SQL SET TRANSACTION READ ONLY;
+
+	EXEC SQL DECLARE cursorLaptop CURSOR FOR SELECT laptop.modelo, produto.fabricante 
+										     FROM laptop, produto 
+										     WHERE produto.modelo = laptop.modelo 
+										     	AND laptop.preco = :preco_laptop 
+										     	AND laptop.velocidade = :velocidade_laptop;
+	
+	EXEC SQL OPEN cursorLaptop;
+	while(1) {
+		EXEC SQL FETCH FROM cursorLaptop INTO :modelo_laptop, :fabricante_laptop;
+		if(NO_MORE_TUPLES) break;
+		printf("Velocidade do laptop: %d\n", velocidade_laptop);
+		printf("Preco do Laptop:%.2f\n", preco_laptop);
+		printf("Modelo do laptop: %i\n", modelo_laptop);
+		printf("Fabricante do laptop: %c\n\n", fabricante_laptop);
+	}
+	EXEC SQL CLOSE cursorLaptop; 
+
+	EXEC SQL COMMIT;
+	return;
+}
+
+/***
+Exercício 2: Para cada um dos programas dos Exercício 1, discuta os problemas de atomicidade (se
+             houver algum) que podem ocorrer no caso de uma falha (queda) do sistema no meio da
+             execução do programa.
+***/
+
+Na A) o problema de atomocidade ocorre se houver uma falha ao deletar o modelo do produto nas tabelas onde e produto 
+em si estiver guardado mas a exclusão na tabela PRODUTO não for concluida, pois assim, aquele produto estará na tabela
+PRODUTO, mas não vamos conseguir acessar as informações desse produtos como preço e outros dependendo qual é esse produto.
+
+B) não há problema pois a alteração ocorre em um único comando SQL, e ela mesmo já garante atomicidade. Caso ocorra alguma 
+falha no meio de sua execução, todas as modificações serão canceladas.
+
+C) se ocorrer uma falha antes de adicionar a tupla na tabela impressora, o dado só ficará guardado na tabela PRODUTO, 
+como se aquele produto existisse.
+
+D) não há alteração em nenhuma tabela,apenas uma simples consulta.
+
+/***
+Exercício 3: Suponha que tenhamos uma transação T que é uma função que executa “eternamente”
+             e que a cada hora verifica se existe um equipamento do fabricante 'A' que seja vendido por mais de
+             R$2500,00. Se ela encontrar algum equipamento desse tipo, ela imprime as informações do
+             equipamento e termina. Durante esse tempo, outras transações que são execuções de um dos quatro
+             programas descritos no Exercício 1 podem rodar. Para cada um dos quatro níveis de isolamento
+             possíveis – SERIALIZABLE, REPEATABLE READ, READ COMMITED e READ
+             UNCOMMITED – diga qual é o efeito sobre T da execução nesse nível de isolamento.
+***/
+
+SERIALIZABLE - Se outras transações forem executados ao mesmo tempo que a transação T, o resultado da impressão de T
+               pode ocorrer ANTES ou DEPOIS, mas nunca no meio de uma outra transação.
+READ COMMITED - 

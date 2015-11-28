@@ -1,0 +1,61 @@
+/******************************************************
+Laboratório de Bancos de Dados - MAC0439
+Lista de Exercícios 11 - 2015 - Proposta de Resolução
+*******************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* Exercício 1 ***************************************/
+
+/*
+b) Dado um fabricante, aumente o preço dos Laptops desse fabricante em R$200.
+*/
+
+int main(){
+	EXEC SQL BEGIN DECLARE SECTION;
+
+		const char *bd_url = "bd_xxxxx@data.ime.usp.br:23001";
+		const char *usuario = "uxxxx";
+		const char *senha = "*******";
+		char fabricanteSelecionado[21];
+	
+	EXEC SQL END DECLARE SECTION;
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error; 
+
+    	EXEC SQL CONNECT TO :bd_url AS conexaoBD USER :usuario USING :senha;
+	EXEC SQL SET TRANSACTION READ WRITE ISOLATION LEVEL SERIALIZABLE;
+	
+	//EXEC SQL BEGIN TRANSACTION;
+
+	EXEC SQL SET search_path TO 'aula19';
+
+	printf("\n  Digite o nome do fabricante dos equipamentos a serem atualizados: ");
+	scanf("%s", fabricanteSelecionado);
+	
+	EXEC SQL UPDATE pc SET preco = preco + 200 WHERE modelo IN (SELECT modelo FROM produto WHERE fabricante LIKE :fabricanteSelecionado); 
+
+	EXEC SQL UPDATE laptop SET preco = preco + 200 WHERE modelo IN (SELECT modelo FROM produto WHERE fabricante LIKE :fabricanteSelecionado); 
+
+	EXEC SQL UPDATE impressora SET preco = preco + 200 WHERE modelo IN (SELECT modelo FROM produto WHERE fabricante LIKE :fabricanteSelecionado); 
+	
+	EXEC SQL COMMIT;
+	
+	printf ("O preco dos equipamentos do fabricante %s foram atualizados\n", fabricanteSelecionado);
+				
+    	EXEC SQL DISCONNECT conexaoBD;
+
+	return 0;
+
+	sql_error:
+
+	printf ("Houve problemas na atualizacao dos equipamentos do fabricante %s\n", fabricanteSelecionado);
+	printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+
+	EXEC SQL ROLLBACK;  
+
+	return 1;
+}
+
+

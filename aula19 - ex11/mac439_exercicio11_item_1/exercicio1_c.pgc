@@ -1,0 +1,90 @@
+/******************************************************
+Laboratório de Bancos de Dados - MAC0439
+Lista de Exercícios 11 - 2015 - Proposta de Resolução
+*******************************************************/
+#include <stdio.h>
+
+#define NO_DATA !(strcmp(SQLSTATE,"02000"))
+
+/* Exercício 1 ***************************************/
+
+/*
+c) Dados um fabricante, um número de modelo, um tipo de impressora,  a indicação de que a impressora é ou não colorida e um preço, insira essas informações do novo equipamento nas tabelas Impressora e Produto. Caso já exista no BD um produto com o mesmo número de modelo que o fornecido, use como número de modelo para o novo equipamento o menor número de modelo ainda não existente no BD que seja maior que o número inicialmente fornecido. 
+*/
+
+int main(){
+	EXEC SQL BEGIN DECLARE SECTION;
+
+		const char *bd_url = "bd_xxxxx@data.ime.usp.br:23001";
+		const char *usuario = "uxxxx";
+		const char *senha = "*******";
+
+		char fabricante[21];
+		int modelo;
+		char tipo[16];
+		int colorida;
+		float preco;
+		int tmp;
+	
+	EXEC SQL END DECLARE SECTION;
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error; 
+
+    	EXEC SQL CONNECT TO :bd_url AS conexaoBD USER :usuario USING :senha;
+	EXEC SQL SET TRANSACTION READ WRITE ISOLATION LEVEL SERIALIZABLE;
+	
+	//EXEC SQL BEGIN TRANSACTION;
+
+	EXEC SQL SET search_path TO 'aula19';
+
+
+	printf("Digite o fabricante: ");
+	scanf("%s", fabricante);
+
+	printf("Digite o modelo: ");
+	scanf("%d", &modelo);
+
+	printf("Digite o tipo (laser, ink-jet, etc.): ");
+	scanf("%s", tipo);
+
+	printf("Digite a cor (1: colorida, 0: nao colorida): ");
+	scanf("%d", &colorida);
+
+	printf("Digite o preco:");
+	scanf("%f", &preco);
+
+
+	EXEC SQL WHENEVER SQLERROR GOTO sql_error;
+
+	do {
+		printf("Busca modelo %d\n", modelo);
+		EXEC SQL SELECT modelo INTO :tmp FROM produto WHERE modelo = :modelo;
+
+		if (!NO_DATA)
+			modelo = modelo + 1;
+	}
+	while (!NO_DATA);
+
+	EXEC SQL INSERT INTO produto(fabricante, modelo, tipo)
+			VALUES (:fabricante, :modelo, 'impressora');
+
+	EXEC SQL INSERT INTO impressora(modelo, tipo, colorida, preco)
+		VALUES (:modelo, :tipo, :colorida, :preco);
+	
+	EXEC SQL COMMIT;
+
+	printf ("\nA impressora foi inserida com um numero de modelo = %d.\n", modelo);
+	
+    	EXEC SQL DISCONNECT conexaoBD;
+
+	return 0;
+
+	sql_error:
+	
+	printf ("\nA impressora nao pode ser inserida.");
+	printf("ERRO: %s - %s\n", SQLSTATE, sqlca.sqlerrm.sqlerrmc);
+
+	return 1;
+}
+
+
